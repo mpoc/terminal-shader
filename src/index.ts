@@ -1,10 +1,39 @@
+import readline from 'readline'
+
+// Override to fix a problem with readline
+// http://stackoverflow.com/q/41314556/1049894
+// @ts-ignore
+readline.Interface.prototype._insertString = function(c) {
+    if (this.cursor < this.line.length) {
+        var beg = this.line.slice(0, this.cursor)
+        var end = this.line.slice(this.cursor, this.line.length)
+
+        // @ts-ignore
+        this.line = beg + c + end
+        // @ts-ignore
+        this.cursor += c.length
+        // @ts-ignore
+        this._refreshLine()
+    } else {
+        // @ts-ignore
+        this.line += c
+        // @ts-ignore
+        this.cursor += c.length
+        // @ts-ignore
+        this.output.write(c)
+        // @ts-ignore
+        this._moveCursor(0)
+    }
+}
+
 import chalko from 'chalk'
 const chalk = new chalko.Instance({ level: 2 })
 
 const targetFps = 30
 let frame = 0
 
-const getWidth = () => Math.floor(process.stdout.columns / 2)
+// const getWidth = () => Math.floor(process.stdout.columns / 2)
+const getWidth = () => process.stdout.columns
 const getHeight = () => process.stdout.rows
 
 const fragCoord: vec2 = [getWidth(), getHeight()]
@@ -64,11 +93,11 @@ const mainImage = (x: number, y: number): vec4 => {
     return [...multiplyVector(255, colour), 1] as vec4
 }
 
-const constructString = () => pixelColours.map(line =>
-    line.map(colour =>
-        chalk.bgRgb(colour[0], colour[1], colour[2])('  ')
-    ).join('')
-).join('\n')
+const constructLineString = (line: vec4[]) => line.map(colour =>
+    chalk.bgRgb(colour[0], colour[1], colour[2])(' ')
+).join('')
+
+const constructString = () => pixelColours.map(constructLineString).join('\n')
 
 const runShader = () => {
     for (let y = 0; y < getHeight(); y++) {
@@ -78,9 +107,19 @@ const runShader = () => {
     }
 }
 
+readline.cursorTo(process.stdout, 0, 0)
+readline.clearScreenDown(process.stdout)
+const rl = readline.createInterface({
+	input: process.stdin,
+	output: process.stdout,
+})
+rl.on('close', () => process.exit(0))
+
 setInterval(() => {
     runShader()
-    // console.log(getPixelColour(0, 0))
-    process.stdout.write(constructString())
+    for (let y = 0; y < getHeight(); y++) {
+        readline.cursorTo(process.stdout, 0, y)
+        rl.write(constructLineString(pixelColours[y]))
+    }
     frame++
 }, 1000 / 60)
